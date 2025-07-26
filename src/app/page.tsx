@@ -1,103 +1,642 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import {
+  Container,
+  Typography,
+  Paper,
+  CircularProgress,
+  Alert,
+  Box,
+  IconButton,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Button,
+  TextField,
+  ThemeProvider,
+  CssBaseline,
+} from '@mui/material';
+import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import AddIcon from '@mui/icons-material/Add';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import { useForm, Controller } from 'react-hook-form';
+import { Flight } from '../../types/flight';
+import { lightTheme, darkTheme } from '../theme';
+
+interface FlightFormData {
+  date: string;
+  pilotName: string;
+  startTime: number;
+  endTime: number;
+  comments: string;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [flights, setFlights] = useState<Flight[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [flightToDelete, setFlightToDelete] = useState<Flight | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [flightToEdit, setFlightToEdit] = useState<Flight | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FlightFormData>({
+    defaultValues: {
+      date: new Date().toISOString().split('T')[0],
+      pilotName: '',
+      startTime: 0,
+      endTime: 0,
+      comments: '',
+    }
+  });
+
+  useEffect(() => {
+    const fetchFlights = async () => {
+      try {
+        const response = await fetch('/api/flights');
+        if (!response.ok) {
+          throw new Error('Failed to fetch flights');
+        }
+        const data = await response.json();
+        setFlights(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFlights();
+  }, []);
+
+  const handleDeleteClick = (flight: Flight) => {
+    setFlightToDelete(flight);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!flightToDelete) return;
+    
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/flights?id=${flightToDelete.id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete flight');
+      }
+      
+      // Remove the flight from the local state
+      setFlights(flights.filter(f => f.id !== flightToDelete.id));
+      setDeleteDialogOpen(false);
+      setFlightToDelete(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete flight');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setFlightToDelete(null);
+  };
+
+  const handleCreateClick = () => {
+    // Find the most recent endTime to use as startTime
+    if (flights.length > 0) {
+      const mostRecentFlight = flights.reduce((latest, current) => {
+        return new Date(current.date) > new Date(latest.date) ? current : latest;
+      });
+
+      setValue('startTime', mostRecentFlight.endTime);
+    } else {
+      // If no flights exist, start with 0
+      setValue('startTime', 0);
+    }
+
+    setCreateDialogOpen(true);
+  };
+
+  const handleCreateSubmit = async (data: FlightFormData) => {
+    setCreating(true);
+    try {
+      const payload = {
+        date: new Date(data.date).toISOString().slice(0, 19).replace('T', ' '),
+        pilotName: data.pilotName,
+        startTime: Number(data.startTime),
+        endTime: Number(data.endTime),
+        comments: data.comments,
+      };
+      
+      console.log('Sending payload:', payload);
+      
+      const response = await fetch('/api/flights', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create flight');
+      }
+
+      const newFlight = await response.json();
+      setFlights([newFlight, ...flights]);
+      setCreateDialogOpen(false);
+      reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create flight');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCreateCancel = () => {
+    setCreateDialogOpen(false);
+    reset();
+  };
+
+  const handleEditClick = (flight: Flight) => {
+    setFlightToEdit(flight);
+    // Pre-populate the form with existing flight data
+    setValue('date', new Date(flight.date).toISOString().split('T')[0]);
+    setValue('pilotName', flight.pilotName);
+    setValue('startTime', flight.startTime);
+    setValue('endTime', flight.endTime);
+    setValue('comments', flight.comments);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async (data: FlightFormData) => {
+    if (!flightToEdit) return;
+    
+    setEditing(true);
+    try {
+      const payload = {
+        id: flightToEdit.id,
+        date: new Date(data.date).toISOString().slice(0, 19).replace('T', ' '),
+        pilotName: data.pilotName,
+        startTime: Number(data.startTime),
+        endTime: Number(data.endTime),
+        comments: data.comments,
+      };
+      
+      console.log('Sending edit payload:', payload);
+      
+      const response = await fetch('/api/flights', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update flight');
+      }
+
+      const updatedFlight = await response.json();
+      // Update the flight in the local state
+      setFlights(flights.map(f => f.id === updatedFlight.id ? updatedFlight : f));
+      setEditDialogOpen(false);
+      setFlightToEdit(null);
+      reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update flight');
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleEditCancel = () => {
+    setEditDialogOpen(false);
+    setFlightToEdit(null);
+    reset();
+  };
+
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
+  const columns: GridColDef[] = [
+    {
+      field: 'id',
+      headerName: 'ID',
+      width: 90,
+    },
+    {
+      field: 'date',
+      headerName: 'Date',
+      width: 150,
+      valueFormatter: (value) => {
+        return new Date(value).toLocaleDateString();
+      },
+    },
+    {
+      field: 'pilotName',
+      headerName: 'Pilot Name',
+      width: 150,
+    },
+    {
+      field: 'startTime',
+      headerName: 'Start Time',
+      type: 'number',
+      width: 120,
+    },
+    {
+      field: 'endTime',
+      headerName: 'End Time',
+      type: 'number',
+      width: 120,
+    },
+    {
+      field: 'totalTime',
+      headerName: 'Total Time',
+      type: 'number',
+      width: 120,
+    },
+    {
+      field: 'comments',
+      headerName: 'Comments',
+      width: 300,
+      flex: 1,
+    },
+    {
+      field: 'actions',
+      type: 'actions',
+      headerName: 'Actions',
+      width: 100,
+      cellClassName: 'actions',
+      getActions: ({ row }) => {
+        return [
+          <GridActionsCellItem
+            key="edit"
+            icon={<EditIcon />}
+            label="Edit"
+            onClick={() => handleEditClick(row)}
+            color="primary"
+          />,
+          <GridActionsCellItem
+            key="delete"
+            icon={<DeleteIcon />}
+            label="Delete"
+            onClick={() => handleDeleteClick(row)}
+            color="error"
+          />,
+        ];
+      },
+    },
+  ];
+
+  const currentTheme = isDarkMode ? darkTheme : lightTheme;
+
+  if (loading) {
+    return (
+      <ThemeProvider theme={currentTheme}>
+        <CssBaseline />
+        <Box sx={{ width: '100%', p: 3, display: 'flex', justifyContent: 'center' }}>
+          <CircularProgress />
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
+  if (error) {
+    return (
+      <ThemeProvider theme={currentTheme}>
+        <CssBaseline />
+        <Box sx={{ width: '100%', p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
+  return (
+    <ThemeProvider theme={currentTheme}>
+      <CssBaseline />
+      <Box sx={{ width: '100%', p: 3 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4" component="h1">
+          Pilot Flight Tracker
+        </Typography>
+        <Box display="flex" gap={2}>
+          <IconButton onClick={toggleTheme} color="inherit">
+            {isDarkMode ? <LightModeIcon /> : <DarkModeIcon />}
+          </IconButton>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreateClick}
+            disabled={loading}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Add New Flight
+          </Button>
+        </Box>
+      </Box>
+      
+      <Paper elevation={3} sx={{ mt: 3, height: 600 }}>
+        <DataGrid
+          rows={flights}
+          columns={columns}
+          initialState={{
+            pagination: {
+              paginationModel: { page: 0, pageSize: 10 },
+            },
+          }}
+          pageSizeOptions={[5, 10, 25]}
+          checkboxSelection
+          disableRowSelectionOnClick
+          sx={{
+            border: 0,
+            '& .MuiDataGrid-cell:hover': {
+              color: 'primary.main',
+            },
+          }}
+        />
+      </Paper>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle id="alert-dialog-title">
+          Confirm Delete
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            Are you sure you want to delete the flight record for {flightToDelete?.pilotName} on{' '}
+            {flightToDelete && new Date(flightToDelete.date).toLocaleDateString()}?
+            This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCancel} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            color="error" 
+            variant="contained"
+            disabled={deleting}
+            autoFocus
           >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={createDialogOpen}
+        onClose={handleCreateCancel}
+        maxWidth="sm"
+        fullWidth
+        aria-labelledby="create-dialog-title"
+      >
+        <DialogTitle id="create-dialog-title">
+          Add New Flight
+        </DialogTitle>
+        <form onSubmit={handleSubmit(handleCreateSubmit)}>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+              <Controller
+                name="date"
+                control={control}
+                rules={{ required: 'Date is required' }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Date"
+                    type="date"
+                    fullWidth
+                    disabled
+                    error={!!errors.date}
+                    helperText={errors.date?.message || 'Automatically set to today\'s date'}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="pilotName"
+                control={control}
+                rules={{ required: 'Pilot name is required' }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Pilot Name"
+                    fullWidth
+                    error={!!errors.pilotName}
+                    helperText={errors.pilotName?.message}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="startTime"
+                control={control}
+                rules={{ 
+                  required: 'Start time is required',
+                  min: { value: 0, message: 'Start time must be positive' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Start Time"
+                    type="number"
+                    fullWidth
+                    disabled
+                    error={!!errors.startTime}
+                    helperText={errors.startTime?.message || 'Auto-filled from most recent flight end time'}
+                    inputProps={{ step: 0.01 }}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="endTime"
+                control={control}
+                rules={{ 
+                  required: 'End time is required',
+                  min: { value: 0, message: 'End time must be positive' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="End Time"
+                    type="number"
+                    fullWidth
+                    error={!!errors.endTime}
+                    helperText={errors.endTime?.message}
+                    inputProps={{ step: 0.01 }}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="comments"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Comments"
+                    multiline
+                    rows={3}
+                    fullWidth
+                  />
+                )}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCreateCancel} disabled={creating}>
+              Cancel
+            </Button>
+            <Button 
+              type="submit"
+              variant="contained"
+              disabled={creating}
+            >
+              {creating ? 'Creating...' : 'Create Flight'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={editDialogOpen}
+        onClose={handleEditCancel}
+        maxWidth="sm"
+        fullWidth
+        aria-labelledby="edit-dialog-title"
+      >
+        <DialogTitle id="edit-dialog-title">
+          Edit Flight
+        </DialogTitle>
+        <form onSubmit={handleSubmit(handleEditSubmit)}>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+              <Controller
+                name="date"
+                control={control}
+                rules={{ required: 'Date is required' }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Date"
+                    type="date"
+                    fullWidth
+                    error={!!errors.date}
+                    helperText={errors.date?.message}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="pilotName"
+                control={control}
+                rules={{ required: 'Pilot name is required' }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Pilot Name"
+                    fullWidth
+                    error={!!errors.pilotName}
+                    helperText={errors.pilotName?.message}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="startTime"
+                control={control}
+                rules={{ 
+                  required: 'Start time is required',
+                  min: { value: 0, message: 'Start time must be positive' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Start Time"
+                    type="number"
+                    fullWidth
+                    error={!!errors.startTime}
+                    helperText={errors.startTime?.message}
+                    inputProps={{ step: 0.01 }}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="endTime"
+                control={control}
+                rules={{ 
+                  required: 'End time is required',
+                  min: { value: 0, message: 'End time must be positive' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="End Time"
+                    type="number"
+                    fullWidth
+                    error={!!errors.endTime}
+                    helperText={errors.endTime?.message}
+                    inputProps={{ step: 0.01 }}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="comments"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Comments"
+                    multiline
+                    rows={3}
+                    fullWidth
+                  />
+                )}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleEditCancel} disabled={editing}>
+              Cancel
+            </Button>
+            <Button 
+              type="submit"
+              variant="contained"
+              disabled={editing}
+            >
+              {editing ? 'Updating...' : 'Update Flight'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+      </Box>
+    </ThemeProvider>
   );
 }
