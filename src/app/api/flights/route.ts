@@ -5,7 +5,7 @@ import { Flight } from '../../../../types/flight';
 export async function GET() {
   try {
     const db = await connection;
-    const [rows] = await db.execute('SELECT * FROM flights ORDER BY date DESC');
+    const [rows] = await db.execute('SELECT * FROM flights ORDER BY date ASC');
     
     return NextResponse.json(rows as Flight[]);
   } catch (error) {
