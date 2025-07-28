@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Flight } from '../../types/flight';
+import { sumHoursMinutes } from '../utils/timeUtils';
 
 export const useFlights = () => {
   const [flights, setFlights] = useState<Flight[]>([]);
@@ -158,17 +159,14 @@ export const useFlights = () => {
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     
-    const total = flights
+    const monthlyFlightTimes = flights
       .filter(flight => {
         const flightDate = new Date(flight.date);
         return flightDate.getMonth() === currentMonth && flightDate.getFullYear() === currentYear;
       })
-      .reduce((total, flight) => {
-        const flightTime = Number(flight.totalTime) || 0;
-        return total + flightTime;
-      }, 0);
+      .map(flight => Number(flight.totalTime) || 0);
     
-    return isNaN(total) ? 0 : total;
+    return sumHoursMinutes(monthlyFlightTimes);
   };
 
   return {

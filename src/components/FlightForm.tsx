@@ -15,6 +15,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { useForm, Controller, useWatch, useFieldArray } from 'react-hook-form';
 import { Flight } from '../../types/flight';
+import { validateTimeFormat, formatDateForInput } from '../utils/timeUtils';
 
 interface FlightFormData {
   flights: {
@@ -57,7 +58,7 @@ export const FlightForm: React.FC<FlightFormProps> = ({
 
   const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<FlightFormData>({
     defaultValues: isEditMode ? {
-      date: flightToEdit ? new Date(flightToEdit.date).toISOString().split('T')[0] : '',
+      date: flightToEdit ? formatDateForInput(flightToEdit.date) : '',
       pilotName: flightToEdit?.pilotName || '',
       startTime: flightToEdit?.startTime || 0,
       endTime: flightToEdit?.endTime || 0,
@@ -109,7 +110,7 @@ export const FlightForm: React.FC<FlightFormProps> = ({
   // Update form values when flightToEdit changes (edit mode only)
   React.useEffect(() => {
     if (isEditMode && flightToEdit && open) {
-      setValue('date', new Date(flightToEdit.date).toISOString().split('T')[0]);
+      setValue('date', formatDateForInput(flightToEdit.date));
       setValue('pilotName', flightToEdit.pilotName);
       setValue('startTime', flightToEdit.startTime);
       setValue('endTime', flightToEdit.endTime);
@@ -117,19 +118,6 @@ export const FlightForm: React.FC<FlightFormProps> = ({
     }
   }, [isEditMode, flightToEdit, open, setValue]);
 
-  // Validation function for time format (hours.minutes where minutes <= 59)
-  const validateTimeFormat = (value: number | undefined) => {
-    if (value === undefined) return true;
-    const timeStr = value.toString();
-    if (timeStr.includes('.')) {
-      const [, decimal] = timeStr.split('.');
-      const minutes = parseInt(decimal.padEnd(2, '0').substring(0, 2));
-      if (minutes > 59) {
-        return 'Minutes cannot exceed 59 (use format: hours.minutes)';
-      }
-    }
-    return true;
-  };
 
   const addFlightRow = () => {
     const currentFields = getValues().flights || [];
@@ -148,6 +136,31 @@ export const FlightForm: React.FC<FlightFormProps> = ({
   const removeFlightRow = (index: number) => {
     if (fields.length > 1) {
       remove(index);
+      
+      // Update start times for all flights after removal
+      setTimeout(() => {
+        const currentFormValues = getValues();
+        if (currentFormValues.flights && Array.isArray(currentFormValues.flights)) {
+          // Recalculate start times for all flights starting from the first affected flight
+          const startIndex = Math.max(0, index - 1);
+          
+          for (let i = startIndex; i < currentFormValues.flights.length; i++) {
+            if (i === 0) {
+              // First flight keeps its current start time or uses initialStartTime
+              const currentStartTime = currentFormValues.flights[i]?.startTime;
+              if (currentStartTime === undefined || currentStartTime === 0) {
+                setValue(`flights.${i}.startTime`, initialStartTime);
+              }
+            } else {
+              // Subsequent flights start where the previous flight ended
+              const previousFlight = currentFormValues.flights[i - 1];
+              if (previousFlight?.endTime !== undefined) {
+                setValue(`flights.${i}.startTime`, previousFlight.endTime);
+              }
+            }
+          }
+        }
+      }, 0);
     }
   };
 
@@ -377,7 +390,7 @@ export const FlightForm: React.FC<FlightFormProps> = ({
                       )}
                     />
                     
-                    {fields.length > 1 && (
+                    {fields.length > 1 && index > 0 && (
                       <IconButton
                         onClick={() => removeFlightRow(index)}
                         color="error"
