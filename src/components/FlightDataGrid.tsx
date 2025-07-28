@@ -80,7 +80,7 @@ export const FlightDataGrid: React.FC<FlightDataGridProps> = ({
           />,
           <GridActionsCellItem
             key="delete"
-            icon={<DeleteIcon />}
+            icon={<DeleteIcon color="error" />}
             label="Delete"
             onClick={() => onDelete(row)}
           />,
@@ -101,6 +101,7 @@ export const FlightDataGrid: React.FC<FlightDataGridProps> = ({
     <DataGrid
       rows={flights}
       columns={columns}
+      getRowId={(row) => row.id}
       initialState={{
         pagination: {
           paginationModel: { page: 0, pageSize: 10 },

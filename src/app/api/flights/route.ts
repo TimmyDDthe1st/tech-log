@@ -77,6 +77,15 @@ export async function PUT(request: NextRequest) {
     console.log('Attempting to connect to database for update...');
     const db = await connection;
     console.log('Database connected, executing update...');
+    console.log('Update parameters:', { id, date, pilotName, startTime, endTime, comments });
+    
+    // Validate that endTime > startTime to prevent negative total time
+    if (Number(endTime) <= Number(startTime)) {
+      return NextResponse.json(
+        { error: 'End time must be greater than start time' },
+        { status: 400 }
+      );
+    }
     
     const [result] = await db.execute(
       'UPDATE flights SET date = ?, pilotName = ?, startTime = ?, endTime = ?, comments = ? WHERE id = ?',

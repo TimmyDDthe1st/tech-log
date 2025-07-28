@@ -59,6 +59,7 @@ export default function Home() {
   const [editing, setEditing] = useState(false);
   const [flightToEdit, setFlightToEdit] = useState<Flight | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [initialStartTime, setInitialStartTime] = useState(0);
 
   // Event handlers
   const handleDeleteClick = (flight: Flight) => {
@@ -98,6 +99,7 @@ export default function Home() {
       startTime = Number(flightWithHighestEndTime.endTime) || 0;
     }
 
+    setInitialStartTime(startTime);
     setCreateDialogOpen(true);
   };
 
@@ -231,6 +233,7 @@ export default function Home() {
           open={createDialogOpen}
           mode="create"
           flights={flights}
+          initialStartTime={initialStartTime}
           onClose={handleCreateCancel}
           onSubmit={handleCreateSubmit}
           loading={creating}

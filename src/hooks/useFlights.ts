@@ -53,8 +53,14 @@ export const useFlights = () => {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create flight');
+          let errorMessage = 'Failed to create flight';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (jsonError) {
+            errorMessage = `Server error (status: ${response.status})`;
+          }
+          throw new Error(errorMessage);
         }
 
         const newFlight = await response.json();
@@ -93,8 +99,15 @@ export const useFlights = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update flight');
+        let errorMessage = 'Failed to update flight';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          // If JSON parsing fails, we can't read the response again
+          errorMessage = `Server error (status: ${response.status})`;
+        }
+        throw new Error(errorMessage);
       }
 
       const updatedFlight = await response.json();

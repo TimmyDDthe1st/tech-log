@@ -37,6 +37,7 @@ interface FlightFormProps {
   mode: 'create' | 'edit';
   flightToEdit?: Flight | null;
   flights: Flight[];
+  initialStartTime?: number;
   onClose: () => void;
   onSubmit: (data: FlightFormData) => void;
   loading: boolean;
@@ -47,6 +48,7 @@ export const FlightForm: React.FC<FlightFormProps> = ({
   mode,
   flightToEdit,
   flights,
+  initialStartTime = 0,
   onClose,
   onSubmit,
   loading,
@@ -64,7 +66,7 @@ export const FlightForm: React.FC<FlightFormProps> = ({
       flights: [{
         date: new Date().toISOString().split('T')[0],
         pilotName: '',
-        startTime: 0,
+        startTime: initialStartTime,
         endTime: 0,
         comments: '',
       }]
@@ -96,6 +98,24 @@ export const FlightForm: React.FC<FlightFormProps> = ({
       }
     }
   }, [watchedFlights, setValue, isEditMode]);
+
+  // Update initial start time when dialog opens (create mode only)
+  React.useEffect(() => {
+    if (!isEditMode && open && initialStartTime !== undefined) {
+      setValue('flights.0.startTime', initialStartTime);
+    }
+  }, [isEditMode, open, initialStartTime, setValue]);
+
+  // Update form values when flightToEdit changes (edit mode only)
+  React.useEffect(() => {
+    if (isEditMode && flightToEdit && open) {
+      setValue('date', new Date(flightToEdit.date).toISOString().split('T')[0]);
+      setValue('pilotName', flightToEdit.pilotName);
+      setValue('startTime', flightToEdit.startTime);
+      setValue('endTime', flightToEdit.endTime);
+      setValue('comments', flightToEdit.comments || '');
+    }
+  }, [isEditMode, flightToEdit, open, setValue]);
 
   // Validation function for time format (hours.minutes where minutes <= 59)
   const validateTimeFormat = (value: number | undefined) => {
@@ -215,7 +235,9 @@ export const FlightForm: React.FC<FlightFormProps> = ({
                     validate: {
                       timeFormat: validateTimeFormat,
                       greaterThanStart: (value) => {
+                        if (value === undefined) return true;
                         const startTime = getValues().startTime;
+                        if (startTime === undefined) return true;
                         if (value <= startTime) {
                           return 'End time must be greater than start time';
                         }
@@ -331,8 +353,10 @@ export const FlightForm: React.FC<FlightFormProps> = ({
                         validate: {
                           timeFormat: validateTimeFormat,
                           greaterThanStart: (value) => {
+                            if (value === undefined) return true;
                             const currentFormValues = getValues();
                             const startTime = currentFormValues.flights?.[index]?.startTime;
+                            if (startTime === undefined) return true;
                             if (Number(value) <= Number(startTime)) {
                               return 'End time must be greater than start time';
                             }
