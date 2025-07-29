@@ -12,10 +12,13 @@ import { Flight } from '../../types/flight';
 import { lightTheme, darkTheme } from '../theme';
 import { useFlights } from '../hooks/useFlights';
 import { useTheme } from '../hooks/useTheme';
+import { useAircraft } from '../hooks/useAircraft';
 import { FlightDataGrid } from '../components/FlightDataGrid';
 import { FlightForm } from '../components/FlightForm';
 import { DeleteConfirmationDialog } from '../components/DeleteConfirmationDialog';
 import { PageHeader } from '../components/PageHeader';
+import { AircraftWizard } from '../components/AircraftWizard';
+import { EditAircraftDialog } from '../components/EditAircraftDialog';
 
 interface FlightFormData {
   flights: {
@@ -43,10 +46,23 @@ export default function Home() {
     updateFlight, 
     deleteFlight, 
     bulkDeleteFlights,
-    getMonthlyTotal 
+    getMonthlyTotal,
+    getTotalHoursWithBase,
+    getLastFlightEndTime
   } = useFlights();
   
   const { isDarkMode, mounted, toggleTheme } = useTheme();
+  
+  const { 
+    aircraft,
+    baseHours, 
+    registration,
+    loading: aircraftLoading, 
+    isSetupComplete,
+    createOrUpdateAircraft,
+    updateAircraft
+  } = useAircraft();
+  
 
   // UI state
   const [selectedFlights, setSelectedFlights] = useState<(string | number)[]>([]);
@@ -60,6 +76,7 @@ export default function Home() {
   const [flightToEdit, setFlightToEdit] = useState<Flight | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [initialStartTime, setInitialStartTime] = useState(0);
+  const [editAircraftOpen, setEditAircraftOpen] = useState(false);
 
   // Event handlers
   const handleDeleteClick = (flight: Flight) => {
@@ -88,16 +105,9 @@ export default function Home() {
   };
 
   const handleCreateClick = () => {
-    // Find the flight with the highest end time to use as start time
-    let startTime = 0;
-    if (flights.length > 0) {
-      const flightWithHighestEndTime = flights.reduce((highest, current) => {
-        const currentEndTime = Number(current.endTime) || 0;
-        const highestEndTime = Number(highest.endTime) || 0;
-        return currentEndTime > highestEndTime ? current : highest;
-      });
-      startTime = Number(flightWithHighestEndTime.endTime) || 0;
-    }
+    // Get the last flight end time, using base hours as fallback
+    const lastEndTime = getLastFlightEndTime(baseHours);
+    const startTime = lastEndTime > 0 ? lastEndTime : baseHours;
 
     setInitialStartTime(startTime);
     setCreateDialogOpen(true);
@@ -181,6 +191,33 @@ export default function Home() {
     }
   };
 
+  const handleAircraftSetup = async (registration: string, baseHours: number) => {
+    try {
+      await createOrUpdateAircraft(registration, baseHours);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create aircraft');
+    }
+  };
+
+  const handleEditAircraft = () => {
+    setEditAircraftOpen(true);
+  };
+
+  const handleEditAircraftClose = () => {
+    setEditAircraftOpen(false);
+  };
+
+  const handleEditAircraftSave = async (newRegistration: string, newBaseHours: number) => {
+    try {
+      if (aircraft) {
+        await updateAircraft(aircraft.id, newRegistration, newBaseHours);
+      }
+    } catch (err) {
+      throw err; // Let the dialog handle the error display
+    }
+  };
+
+
   // Use light theme as fallback during SSR to prevent hydration mismatch
   const currentTheme = (!mounted ? lightTheme : (isDarkMode ? darkTheme : lightTheme));
 
@@ -195,12 +232,25 @@ export default function Home() {
     );
   }
 
+  // Show aircraft wizard if setup is not complete
+  if (!loading && !aircraftLoading && !isSetupComplete) {
+    return (
+      <ThemeProvider theme={currentTheme}>
+        <CssBaseline />
+        <AircraftWizard onComplete={handleAircraftSetup} />
+      </ThemeProvider>
+    );
+  }
+
+
   return (
     <ThemeProvider theme={currentTheme}>
       <CssBaseline />
       <Box sx={{ width: '100%', height: '100vh', p: 3, display: 'flex', flexDirection: 'column' }}>
         <PageHeader
           monthlyTotal={getMonthlyTotal()}
+          totalHours={getTotalHoursWithBase(baseHours)}
+          aircraftRegistration={registration}
           selectedFlightsCount={selectedFlights.length}
           isDarkMode={isDarkMode}
           loading={loading}
@@ -208,6 +258,7 @@ export default function Home() {
           onToggleTheme={toggleTheme}
           onCreateFlight={handleCreateClick}
           onBulkDelete={handleBulkDelete}
+          onEditAircraft={handleEditAircraft}
         />
         
         <Paper elevation={3} sx={{ mt: 3, flexGrow: 1, display: 'flex' }}>
@@ -247,6 +298,14 @@ export default function Home() {
           onClose={handleEditCancel}
           onSubmit={handleEditSubmit}
           loading={editing}
+        />
+
+        <EditAircraftDialog
+          open={editAircraftOpen}
+          aircraft={aircraft}
+          onClose={handleEditAircraftClose}
+          onSave={handleEditAircraftSave}
+          loading={aircraftLoading}
         />
       </Box>
     </ThemeProvider>

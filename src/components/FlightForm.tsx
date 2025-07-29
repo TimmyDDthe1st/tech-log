@@ -25,7 +25,6 @@ interface FlightFormData {
     endTime: number;
     comments: string;
   }[];
-  // For edit mode
   date?: string;
   pilotName?: string;
   startTime?: number;
@@ -348,9 +347,9 @@ export const FlightForm: React.FC<FlightFormProps> = ({
                           {...field}
                           label={`Start Time ${index + 1}`}
                           type="number"
-                          disabled={flights.length > 0 && index === 0}
+                          disabled={index === 0}
                           error={!!errors.flights?.[index]?.startTime}
-                          helperText={errors.flights?.[index]?.startTime?.message || (flights.length === 0 && index === 0 ? 'Enter your starting time' : '')}
+                          helperText={errors.flights?.[index]?.startTime?.message}
                           inputProps={{ step: 0.01 }}
                           sx={{ minWidth: 140 }}
                         />

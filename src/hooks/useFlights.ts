@@ -169,6 +169,29 @@ export const useFlights = () => {
     return sumHoursMinutes(monthlyFlightTimes);
   };
 
+
+  const getTotalFlightHours = (): number => {
+    const flightTimes = flights.map(flight => Number(flight.totalTime) || 0);
+    return sumHoursMinutes(flightTimes);
+  };
+
+  const getTotalHoursWithBase = (baseHours: number): number => {
+    const totalFlightHours = getTotalFlightHours();
+    return sumHoursMinutes([baseHours, totalFlightHours]);
+  };
+
+  const getLastFlightEndTime = (baseHours: number = 0): number => {
+    if (flights.length === 0) return baseHours;
+    
+    const flightWithHighestEndTime = flights.reduce((highest, current) => {
+      const currentEndTime = Number(current.endTime) || 0;
+      const highestEndTime = Number(highest.endTime) || 0;
+      return currentEndTime > highestEndTime ? current : highest;
+    });
+    
+    return Number(flightWithHighestEndTime.endTime) || baseHours;
+  };
+
   return {
     flights,
     loading,
@@ -179,5 +202,8 @@ export const useFlights = () => {
     deleteFlight,
     bulkDeleteFlights,
     getMonthlyTotal,
+    getTotalFlightHours,
+    getTotalHoursWithBase,
+    getLastFlightEndTime,
   };
 };
