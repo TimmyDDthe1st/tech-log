@@ -20,9 +20,3 @@ CREATE TABLE IF NOT EXISTS flights (
     comments TEXT
 );
 
-INSERT INTO flights (date, pilotName, startTime, endTime, comments) VALUES
-('2024-01-15 08:00:00', 'testpilotName', 2.50, 3.30, 'January flight'),
-('2024-02-16 09:30:00', 'testpilotName', 3.30, 4.15, 'February flight'),
-('2024-03-17 14:15:00', 'testpilotName', 4.15, 5.00, 'March flight'),
-('2024-04-18 10:45:00', 'testpilotName', 5.00, 6.30, 'April flight'),
-('2024-05-19 16:20:00', 'testpilotName', 6.30, 7.45, 'May flight');
