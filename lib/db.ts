@@ -1,11 +1,14 @@
 import mysql from 'mysql2/promise';
 
-const connection = mysql.createConnection({
+const pool = mysql.createPool({
   host: 'localhost',
   port: 3306,
   user: 'flightuser',
   password: 'flightpassword',
   database: 'flight_tracker',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
-export default connection;
+export default pool;

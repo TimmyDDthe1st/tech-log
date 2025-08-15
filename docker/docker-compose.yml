@@ -3,7 +3,7 @@ version: '3.8'
 services:
   mysql:
     image: mysql:8.0
-    container_name: flight_tracker_db
+    container_name: flight_tracker
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: flight_tracker

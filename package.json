@@ -14,8 +14,13 @@
     "@mui/icons-material": "^7.2.0",
     "@mui/material": "^7.2.0",
     "@mui/x-data-grid": "^8.9.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "bcryptjs": "^3.0.2",
+    "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.14.2",
     "next": "15.4.4",
+    "next-auth": "^5.0.0-beta.29",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.61.1"

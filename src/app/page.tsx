@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import {
   Alert,
   Box,
   Paper,
   ThemeProvider,
   CssBaseline,
+  CircularProgress,
 } from '@mui/material';
 import { Flight } from '../../types/flight';
 import { lightTheme, darkTheme } from '../theme';
@@ -19,6 +22,7 @@ import { DeleteConfirmationDialog } from '../components/DeleteConfirmationDialog
 import { PageHeader } from '../components/PageHeader';
 import { AircraftWizard } from '../components/AircraftWizard';
 import { EditAircraftDialog } from '../components/EditAircraftDialog';
+import { UserManagement } from '../components/UserManagement';
 
 interface FlightFormData {
   flights: {
@@ -37,6 +41,16 @@ interface FlightFormData {
 }
 
 export default function Home() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  
+  // Redirect to signin if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin');
+    }
+  }, [status, router]);
+
   const { 
     flights, 
     loading, 
@@ -77,6 +91,7 @@ export default function Home() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [initialStartTime, setInitialStartTime] = useState(0);
   const [editAircraftOpen, setEditAircraftOpen] = useState(false);
+  const [userManagementOpen, setUserManagementOpen] = useState(false);
 
   // Event handlers
   const handleDeleteClick = (flight: Flight) => {
@@ -217,9 +232,40 @@ export default function Home() {
     }
   };
 
+  const handleOpenUserManagement = () => {
+    setUserManagementOpen(true);
+  };
+
+  const handleCloseUserManagement = () => {
+    setUserManagementOpen(false);
+  };
+
 
   // Use light theme as fallback during SSR to prevent hydration mismatch
   const currentTheme = (!mounted ? lightTheme : (isDarkMode ? darkTheme : lightTheme));
+
+  // Show loading while checking authentication
+  if (status === 'loading') {
+    return (
+      <ThemeProvider theme={currentTheme}>
+        <CssBaseline />
+        <Box sx={{ 
+          width: '100%', 
+          height: '100vh', 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center' 
+        }}>
+          <CircularProgress size={60} />
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
+  // Redirect to signin happens in useEffect above
+  if (!session) {
+    return null;
+  }
 
   if (error) {
     return (
@@ -259,6 +305,7 @@ export default function Home() {
           onCreateFlight={handleCreateClick}
           onBulkDelete={handleBulkDelete}
           onEditAircraft={handleEditAircraft}
+          onOpenUserManagement={handleOpenUserManagement}
         />
         
         <Paper elevation={3} sx={{ mt: 3, flexGrow: 1, display: 'flex' }}>
@@ -307,6 +354,24 @@ export default function Home() {
           onSave={handleEditAircraftSave}
           loading={aircraftLoading}
         />
+
+        {/* User Management Modal */}
+        {userManagementOpen && (
+          <Box
+            sx={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              bgcolor: 'background.paper',
+              zIndex: 1300,
+              p: 3,
+            }}
+          >
+            <UserManagement onClose={handleCloseUserManagement} />
+          </Box>
+        )}
       </Box>
     </ThemeProvider>
   );

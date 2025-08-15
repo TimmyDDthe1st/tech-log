@@ -4,7 +4,7 @@ import { Aircraft } from '../../../../types/aircraft';
 
 export async function GET() {
   try {
-    const db = await connection;
+    const db = connection;
     const [rows] = await db.execute('SELECT * FROM aircraft ORDER BY id ASC LIMIT 1');
     
     const aircraft = (rows as any[])[0];
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = await connection;
+    const db = connection;
     
     // Check if aircraft already exists, if so update it, otherwise create new
     const [existingRows] = await db.execute('SELECT id FROM aircraft LIMIT 1');
@@ -92,7 +92,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const db = await connection;
+    const db = connection;
     
     const [result] = await db.execute(
       'UPDATE aircraft SET registration = ?, baseHours = ? WHERE id = ?',

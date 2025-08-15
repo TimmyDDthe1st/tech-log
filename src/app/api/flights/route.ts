@@ -4,7 +4,7 @@ import { Flight } from '../../../../types/flight';
 
 export async function GET() {
   try {
-    const db = await connection;
+    const db = connection;
     const [rows] = await db.execute('SELECT * FROM flights ORDER BY date ASC');
     
     return NextResponse.json(rows as Flight[]);
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Attempting to connect to database...');
-    const db = await connection;
+    const db = connection;
     console.log('Database connected, executing insert...');
     
     const [result] = await db.execute(
@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest) {
     }
 
     console.log('Attempting to connect to database for update...');
-    const db = await connection;
+    const db = connection;
     console.log('Database connected, executing update...');
     console.log('Update parameters:', { id, date, pilotName, startTime, endTime, comments });
     
@@ -128,7 +128,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const db = await connection;
+    const db = connection;
     const [result] = await db.execute('DELETE FROM flights WHERE id = ?', [id]);
     
     // Check if any rows were affected

@@ -6,4 +6,8 @@ export interface Flight {
   endTime: number;
   totalTime: number;
   comments: string;
+  createdBy: number;
+  updatedBy?: number;
+  createdAt: string;
+  updatedAt: string;
 }
