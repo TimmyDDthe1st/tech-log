@@ -21,18 +21,20 @@ import {
   IconButton,
   Switch,
   FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
 import { Add, Edit, Delete, PersonAdd } from '@mui/icons-material';
 import { User, UserRole } from '../../types/user';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 
 interface UserFormData {
   email: string;
-  password: string;
+  password?: string;
   firstName: string;
   lastName: string;
   role: UserRole;
+  isActive: boolean;
 }
 
 interface UserManagementProps {
@@ -44,12 +46,19 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<UserFormData>();
+  const { register, handleSubmit, reset, formState: { errors }, setValue, control, unregister } = useForm<UserFormData>({
+    defaultValues: {
+      isActive: true,
+      role: 'pilot' // Default role to prevent controlled/uncontrolled error
+    },
+    mode: 'onChange'
+  });
 
   // Fetch users
   const fetchUsers = async () => {
@@ -110,6 +119,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
   const handleUpdateUser = async (data: Partial<UserFormData>) => {
     if (!selectedUser) return;
 
+    console.log('Attempting to update user:', data);
     setSubmitting(true);
     try {
       const response = await fetch('/api/users', {
@@ -141,7 +151,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          id: user.id, 
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
           isActive: !user.isActive 
         }),
       });
@@ -181,10 +195,17 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
 
   const handleEditClick = (user: User) => {
     setSelectedUser(user);
-    setValue('email', user.email);
-    setValue('firstName', user.firstName);
-    setValue('lastName', user.lastName);
-    setValue('role', user.role);
+    setIsEditMode(true);
+    
+    // Completely reset form and re-initialize for edit mode
+    reset({
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive
+    });
+    
     setEditDialogOpen(true);
   };
 
@@ -288,7 +309,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
           <Button
             variant="contained"
             startIcon={<PersonAdd />}
-            onClick={() => setCreateDialogOpen(true)}
+            onClick={() => {
+              setIsEditMode(false);
+              reset(); // Reset form for create mode
+              setCreateDialogOpen(true);
+            }}
           >
             Create User
           </Button>
@@ -351,6 +376,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
               type="email"
               fullWidth
               margin="normal"
+              autoComplete="off"
               error={!!errors.email}
               helperText={errors.email?.message}
             />
@@ -366,22 +392,31 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
               type="password"
               fullWidth
               margin="normal"
+              autoComplete="new-password"
               error={!!errors.password}
               helperText={errors.password?.message}
             />
             <FormControl fullWidth margin="normal">
               <InputLabel>Role</InputLabel>
-              <Select
-                {...register('role', { required: 'Role is required' })}
-                label="Role"
-                error={!!errors.role}
-              >
-                {getAvailableRoles().map((role) => (
-                  <MenuItem key={role} value={role}>
-                    {role.replace('_', ' ').toUpperCase()}
-                  </MenuItem>
-                ))}
-              </Select>
+              <Controller
+                name="role"
+                control={control}
+                defaultValue="pilot"
+                rules={{ required: 'Role is required' }}
+                render={({ field }) => (
+                  <Select
+                    {...field}
+                    label="Role"
+                    error={!!errors.role}
+                  >
+                    {getAvailableRoles().map((role) => (
+                      <MenuItem key={role} value={role}>
+                        {role.replace('_', ' ').toUpperCase()}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                )}
+              />
             </FormControl>
           </DialogContent>
           <DialogActions>
@@ -395,7 +430,47 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
 
       {/* Edit User Dialog */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <form onSubmit={handleSubmit(handleUpdateUser)}>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          console.log('Form submitted via onSubmit handler');
+          console.log('Current form errors:', errors);
+          console.log('Selected user:', selectedUser);
+          console.log('Is edit mode:', isEditMode);
+          
+          const formData = new FormData(e.target as HTMLFormElement);
+          console.log('Form data entries:', Object.fromEntries(formData.entries()));
+          
+          // For edit mode, manually collect and validate only the needed fields
+          if (isEditMode) {
+            // Get the checkbox value directly from the form state
+            const checkboxElement = (e.target as HTMLFormElement).querySelector('input[type="checkbox"]') as HTMLInputElement;
+            
+            const editData = {
+              email: formData.get('email') as string,
+              firstName: formData.get('firstName') as string,
+              lastName: formData.get('lastName') as string,
+              role: formData.get('role') as UserRole,
+              isActive: checkboxElement ? checkboxElement.checked : true
+            };
+            
+            // Simple validation for edit mode
+            if (!editData.email || !editData.firstName || !editData.lastName || !editData.role) {
+              console.log('Edit form validation failed - missing required fields');
+              return;
+            }
+            
+            console.log('Edit form validated successfully, calling handleUpdateUser with:', editData);
+            handleUpdateUser(editData);
+          } else {
+            // Use react-hook-form validation for create mode
+            handleSubmit((data) => {
+              console.log('Create form handleSubmit called with data:', data);
+              handleCreateUser(data);
+            }, (errors) => {
+              console.log('Create form validation failed with errors:', errors);
+            })(e);
+          }
+        }}>
           <DialogTitle>Edit User</DialogTitle>
           <DialogContent sx={{ pt: 2 }}>
             <TextField
@@ -431,21 +506,49 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
             />
             <FormControl fullWidth margin="normal">
               <InputLabel>Role</InputLabel>
-              <Select
-                {...register('role', { required: 'Role is required' })}
-                label="Role"
-                error={!!errors.role}
-              >
-                {getAvailableRoles().map((role) => (
-                  <MenuItem key={role} value={role}>
-                    {role.replace('_', ' ').toUpperCase()}
-                  </MenuItem>
-                ))}
-              </Select>
+              <Controller
+                name="role"
+                control={control}
+                defaultValue="pilot"
+                rules={{ required: 'Role is required' }}
+                render={({ field }) => (
+                  <Select
+                    {...field}
+                    label="Role"
+                    error={!!errors.role}
+                  >
+                    {getAvailableRoles().map((role) => (
+                      <MenuItem key={role} value={role}>
+                        {role.replace('_', ' ').toUpperCase()}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                )}
+              />
             </FormControl>
+            <FormControlLabel
+              control={
+                <Controller
+                  name="isActive"
+                  control={control}
+                  defaultValue={true}
+                  render={({ field }) => (
+                    <Checkbox
+                      checked={field.value || false}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                    />
+                  )}
+                />
+              }
+              label="Active User"
+            />
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => {
+              setEditDialogOpen(false);
+              setIsEditMode(false);
+              reset();
+            }}>Cancel</Button>
             <Button type="submit" variant="contained" disabled={submitting}>
               {submitting ? 'Updating...' : 'Update User'}
             </Button>

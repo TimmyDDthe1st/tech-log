@@ -131,8 +131,14 @@ export async function PUT(request: NextRequest) {
   try {
     const session = await auth();
     
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check permissions based on role
+    const userRole = session.user.role;
+    if (!['super_user', 'admin'].includes(userRole)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -147,10 +153,44 @@ export async function PUT(request: NextRequest) {
 
     const db = connection;
     
+    // Get the user being updated to check permissions
+    const [existingUsers] = await db.execute(
+      'SELECT role FROM users WHERE id = ?',
+      [id]
+    );
+    
+    const existingUser = (existingUsers as any[])[0];
+    if (!existingUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check role update permissions
+    if (userRole === 'admin') {
+      // Admin cannot edit super_users or other admins
+      if (['super_user', 'admin'].includes(existingUser.role)) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions to edit this user' },
+          { status: 403 }
+        );
+      }
+      // Admin can only assign pilot and accountant roles
+      if (!['pilot', 'accountant'].includes(role)) {
+        return NextResponse.json(
+          { error: 'Admins can only assign pilot and accountant roles' },
+          { status: 403 }
+        );
+      }
+    }
+    
+    // Super users can edit anyone and assign any role
+    
     // Update user
     const [result] = await db.execute(
-      'UPDATE users SET email = ?, firstName = ?, lastName = ?, role = ?, isActive = ? WHERE id = ?',
-      [email, firstName, lastName, role, isActive, id]
+      'UPDATE users SET email = ?, firstName = ?, lastName = ?, role = ?, isActive = ?, updatedBy = ? WHERE id = ?',
+      [email, firstName, lastName, role, isActive, session.user.id, id]
     );
     
     const updateResult = result as any;
